@@ -233,7 +233,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
             return `${name}=${typeof value}`;
           };
           const fields = ["video_url", "video_url_hevc", "video_api", "video_iv", "video_key", "media_id"];
-          throw new Error(`播放地址诊断 v2 (id=${curId},ep=${curEp}): ${fields.map(describe).join("; ")}`);
+          throw new Error(`服务器未提供可用的播放/试看地址，请检查官网播放及账号权限 (id=${curId},ep=${curEp})。诊断：${fields.map(describe).join("; ")}`);
         }
         setPlayUrls((m) => ({ ...m, [playKey]: url }));
         setErr("");
