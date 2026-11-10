@@ -1,6 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, forwardRef, useState } from "react";
 import Hls from "hls.js";
-import { isLocalMedia, playlist } from "../api";
+import { isLocalMedia, mediaUrl } from "../api";
 
 export type VideoHandle = {
   el: () => HTMLVideoElement | null;
@@ -67,7 +67,7 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
 
     const proxied = isLocalMedia(src);
-    const url = proxied ? src : playlist(src);
+    const url = proxied ? src : mediaUrl(src);
     const useHls = !url.includes("/seg?u=");
 
     /* 换源时先把音量/倍速套回去：hls 重新 attach 后浏览器会把它们重置成默认值 */
@@ -132,6 +132,11 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
       onClick={onClick}
       className={`w-full h-full bg-black ${fit === "cover" ? "object-cover" : "object-contain"} ${className}`}
       style={{ opacity: ready ? 1 : 0, transition: "opacity .35s" }}
+      onError={(e) => {
+        const media = e.currentTarget;
+        const code = media.error?.code ?? 0;
+        onError?.(`媒体加载失败 (code=${code})，请检查试看源或网络`);
+      }}
       onLoadedData={(e) => { setReady(true); reapply(e.target as HTMLVideoElement); }}
       onTimeUpdate={(e) => onTime?.((e.target as HTMLVideoElement).currentTime)}
       onLoadedMetadata={(e) => {
