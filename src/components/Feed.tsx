@@ -56,6 +56,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
   const [rate, setRate] = useState(1);
   const [waiting, setWaiting] = useState(false);
   const [err, setErr] = useState("");
+  const [playRetry, setPlayRetry] = useState(0);
   const [vipLocked, setVipLocked] = useState(false);
   const vipLockedRef = useRef(false);
   const [panel, setPanel] = useState<"episodes" | "comments" | "article" | null>(null);
@@ -204,22 +205,45 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, index, videoIds]);
 
-  /* 拉播放地址 */
+  /* 拉播放地址：明确诊断 API 空数据，并允许用户重新请求 */
   useEffect(() => {
-    if (!curId) return;
+    if (!curId || kind !== "video") return;
     if (playUrls[playKey]) return;
     let alive = true;
+    setErr("");
+    setWaiting(true);
     api.play(curId, curEp)
       .then((info) => {
         if (!alive) return;
-        if (!info?.video_url) throw new Error("暂无播放地址");
-        setPlayUrls((m) => ({ ...m, [playKey]: info.video_url }));
+        const url = typeof info?.video_url === "string" ? info.video_url.trim() : "";
+        if (!/^https?:\/\//i.test(url)) {
+          const keys = info && typeof info === "object" ? Object.keys(info).join(",") : "无";
+          throw new Error(`接口未返回有效播放地址 (id=${curId}, ep=${curEp}, fields=${keys})`);
+        }
+        setPlayUrls((m) => ({ ...m, [playKey]: url }));
+        setErr("");
         addHistory(curId);
       })
-      .catch((e) => { if (alive) setErr((e as Error).message || "取播放地址失败"); });
+      .catch((e) => {
+        if (alive) {
+          setWaiting(false);
+          setErr((e as Error).message || "取播放地址失败");
+        }
+      });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [curId, curEp]);
+  }, [curId, curEp, kind, playRetry]);
+
+  const retryCurrentVideo = () => {
+    setErr("");
+    setWaiting(true);
+    setPlayUrls((m) => {
+      const next = { ...m };
+      delete next[playKey];
+      return next;
+    });
+    setPlayRetry((n) => n + 1);
+  };
 
   /* 下一集无缝预加载：当前集开播后，静默预取下一集播放地址并预热底层 m3u8 缓存 */
   useEffect(() => {
@@ -945,7 +969,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
                   <div className="bg-black/70 rounded-xl p-5 flex flex-col items-center gap-3 text-[13px] text-white/90">
                     <span>视频暂时无法加载</span>
                     <span className="text-[10.5px] text-white/45 max-w-[240px] text-center break-all">{err}</span>
-                    <button className="text-primary text-[12.5px]" onClick={() => { setErr(""); setWaiting(true); videoRef.current?.play(); }}>重试</button>
+                    <button className="text-primary text-[12.5px]" onClick={retryCurrentVideo}>重新获取播放地址</button>
                   </div>
                 </div>
               )}
