@@ -217,8 +217,23 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
         if (!alive) return;
         const url = typeof info?.video_url === "string" ? info.video_url.trim() : "";
         if (!/^https?:\/\//i.test(url)) {
-          const keys = info && typeof info === "object" ? Object.keys(info).join(",") : "无";
-          throw new Error(`接口未返回有效播放地址 (id=${curId}, ep=${curEp}, fields=${keys})`);
+          // 仅展示类型、长度及 URL 协议，不展示完整链接、令牌或密钥。
+          const record = info && typeof info === "object" ? info as unknown as Record<string, unknown> : {};
+          const describe = (name: string): string => {
+            const value = record[name];
+            if (value === null) return `${name}=null`;
+            if (value === undefined) return `${name}=missing`;
+            if (typeof value === "string") {
+              const trimmed = value.trim();
+              const scheme = /^https?:\/\//i.test(trimmed) ? "http(s)" : /^\w+:/.test(trimmed) ? "other-scheme" : "no-scheme";
+              return `${name}=string(len:${trimmed.length},${scheme})`;
+            }
+            if (Array.isArray(value)) return `${name}=array(len:${value.length})`;
+            if (typeof value === "object") return `${name}=object(keys:${Object.keys(value as object).length})`;
+            return `${name}=${typeof value}`;
+          };
+          const fields = ["video_url", "video_url_hevc", "video_api", "video_iv", "video_key", "media_id"];
+          throw new Error(`播放地址诊断 v2 (id=${curId},ep=${curEp}): ${fields.map(describe).join("; ")}`);
         }
         setPlayUrls((m) => ({ ...m, [playKey]: url }));
         setErr("");
